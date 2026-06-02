@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>360度空間全景展示</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; }
+        #panorama { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 10; }
+        .ui-layer { position: absolute; z-index: 50; }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.5); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    </style>
+</head>
+<body class="text-slate-100 font-sans antialiased">
+
+    <div id="panorama"></div>
+
+    <div class="ui-layer bottom-4 left-4">
+        <button id="btn-open-select" class="flex items-center gap-2 bg-slate-900/80 hover:bg-slate-800 backdrop-blur-md px-5 py-3 rounded-xl shadow-lg border border-slate-700 transition-all active:scale-95">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 15h18v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2Z"/><path d="M3 15v-4h18v4"/></svg>
+            <span class="font-medium tracking-wide">選擇展示空間</span>
+        </button>
+    </div>
+
+    <div id="modal-select" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] hidden flex justify-center items-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-sm shadow-2xl flex flex-col max-h-[70vh]">
+            <div class="p-5 border-b border-slate-700 flex justify-between items-center bg-slate-800/50 rounded-t-2xl">
+                <h2 class="text-xl font-bold flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 15h18v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2Z"/><path d="M3 15v-4h18v4"/></svg>
+                    空間列表
+                </h2>
+                <button id="btn-close-select" class="p-2 hover:bg-slate-700 rounded-lg transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            
+            <div class="p-4 overflow-y-auto flex-1 flex flex-col gap-3" id="select-list">
+                </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 真相與重點：請在這裡修改你的圖檔網址
+        // ==========================================
+        const scenes = [
+            {
+                id: 'scene_1',
+                name: '大面積客廳 (範例)',
+                // 替換成你上傳到雲端的真實 HTTPS 網址
+                url: 'https://pannellum.org/images/alma.jpg' 
+            },
+            {
+                id: 'scene_2',
+                name: '次臥室空間 (範例)',
+                // 替換成你上傳到雲端的真實 HTTPS 網址
+                url: 'https://pannellum.org/images/cerro-toco-0.jpg' 
+            }
+            // 你可以繼續往下複製大括號來新增更多場景...
+        ];
+
+        let activeSceneId = null;
+        let viewer = null;
+
+        function init() {
+            if (scenes.length === 0) {
+                console.error("沒有設定任何場景");
+                return;
+            }
+            loadScene(scenes[0].id);
+            setupEventListeners();
+        }
+
+        function loadScene(id) {
+            const scene = scenes.find(s => s.id === id);
+            if (!scene) return;
+
+            activeSceneId = id;
+
+            if (viewer) {
+                viewer.destroy();
+            }
+
+            // Pannellum Viewer 初始化
+            viewer = pannellum.viewer('panorama', {
+                type: 'equirectangular',
+                panorama: scene.url,
+                autoLoad: true,
+                showControls: false,
+                compass: false
+            });
+            
+            renderSelectList();
+        }
+
+        function renderSelectList() {
+            const container = document.getElementById('select-list');
+            container.innerHTML = '';
+
+            scenes.forEach(scene => {
+                const btn = document.createElement('button');
+                const isActive = scene.id === activeSceneId;
+                
+                // Active vs Inactive styling
+                btn.className = `w-full text-left px-5 py-4 rounded-xl transition-all flex items-center justify-between border ${
+                    isActive 
+                    ? 'bg-blue-600/20 border-blue-500 text-blue-400 font-bold shadow-inner' 
+                    : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-300 hover:text-white hover:border-slate-500'
+                }`;
+                
+                btn.innerHTML = `
+                    <span class="truncate pr-4 text-base">${scene.name}</span>
+                    ${isActive ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><polyline points="20 6 9 17 4 12"/></svg>` : ''}
+                `;
+                
+                btn.onclick = () => {
+                    if (!isActive) loadScene(scene.id);
+                    document.getElementById('modal-select').classList.add('hidden');
+                };
+                
+                container.appendChild(btn);
+            });
+        }
+
+        function setupEventListeners() {
+            const modalSelect = document.getElementById('modal-select');
+            
+            document.getElementById('btn-open-select').onclick = () => {
+                modalSelect.classList.remove('hidden');
+            };
+            
+            document.getElementById('btn-close-select').onclick = () => {
+                modalSelect.classList.add('hidden');
+            };
+
+            // 點擊背景關閉 Modal
+            modalSelect.onclick = (e) => {
+                if (e.target === modalSelect) modalSelect.classList.add('hidden');
+            };
+        }
+
+        // 啟動應用
+        window.onload = init;
+    </script>
+</body>
+</html>
